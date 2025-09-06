@@ -1,7 +1,10 @@
 package com.saket.eazybytes.accountsservice.service.impl;
 
+import com.saket.eazybytes.accountsservice.dto.AccountsDto;
 import com.saket.eazybytes.accountsservice.dto.CustomerDto;
 import com.saket.eazybytes.accountsservice.exception.CustomerAlreadyExistsException;
+import com.saket.eazybytes.accountsservice.exception.ResourceNotFoundException;
+import com.saket.eazybytes.accountsservice.mapper.AccountsMapper;
 import com.saket.eazybytes.accountsservice.mapper.CustomerMapper;
 import com.saket.eazybytes.accountsservice.model.Accounts;
 import com.saket.eazybytes.accountsservice.model.Customer;
@@ -49,16 +52,46 @@ public class AccountsServiceImpl implements IAccountsService {
 
     @Override
     public CustomerDto fetchAccount(String mobileNumber) {
-        return null;
+        Customer customer = customerRepository.findByMobileNumber(mobileNumber).orElseThrow(
+                () -> new ResourceNotFoundException("Customer", "mobileNumber", mobileNumber)
+        );
+        Accounts accounts = accountsRepository.findByCustomerId(customer.getCustomerId()).orElseThrow(
+                () -> new ResourceNotFoundException("Account", "customerId", customer.getCustomerId().toString())
+        );
+        CustomerDto customerDto = CustomerMapper.mapToCustomerDto(customer, new CustomerDto());
+        customerDto.setAccountsDto(AccountsMapper.mapToAccountsDto(accounts, new AccountsDto()));
+        return customerDto;
     }
 
     @Override
     public boolean updateAccount(CustomerDto customerDto) {
-        return false;
+        boolean isUpdated = false;
+        AccountsDto accountsDto = customerDto.getAccountsDto();
+        if(accountsDto !=null ){
+            Accounts accounts = accountsRepository.findById(accountsDto.getAccountNumber()).orElseThrow(
+                    () -> new ResourceNotFoundException("Account", "AccountNumber", accountsDto.getAccountNumber().toString())
+            );
+            AccountsMapper.mapToAccounts(accountsDto, accounts);
+            accounts = accountsRepository.save(accounts);
+
+            Long customerId = accounts.getCustomerId();
+            Customer customer = customerRepository.findById(customerId).orElseThrow(
+                    () -> new ResourceNotFoundException("Customer", "CustomerID", customerId.toString())
+            );
+            CustomerMapper.mapToCustomer(customerDto,customer);
+            customerRepository.save(customer);
+            isUpdated = true;
+        }
+        return  isUpdated;
     }
 
     @Override
     public boolean deleteAccount(String mobileNumber) {
-        return false;
+        Customer customer = customerRepository.findByMobileNumber(mobileNumber).orElseThrow(
+                () -> new ResourceNotFoundException("Customer", "mobileNumber", mobileNumber)
+        );
+        accountsRepository.deleteByCustomerId(customer.getCustomerId());
+        customerRepository.deleteById(customer.getCustomerId());
+        return true;
     }
 }
